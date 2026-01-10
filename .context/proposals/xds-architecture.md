@@ -39,7 +39,7 @@ XDS serves developers across their workflow phases. Based on research in `fronte
 ┌─────────────────────────────────────────────────────────────────────┐
 │  JOB 3: CONSTRUCT PAGES (Component API)                            │
 │                                                                     │
-│  <Button intent="primary" size="md" />                             │
+│  <Button variant="primary" size="md" />                             │
 │  <Stack gap="md"><Card>...</Card></Stack>                          │
 │                                                                     │
 │  Builder experience:                                                │
@@ -60,14 +60,16 @@ XDS serves developers across their workflow phases. Based on research in `fronte
 │  JOB 1: SET VISUAL STYLE (Theme Layer)                             │
 │                                                                     │
 │  const theme = createTheme({                                       │
-│    tokens: { color: { primary: '#0066cc' } },                      │
-│    components: { button: { intents: {...} } }                      │
+│    tokens: {                                                       │
+│      color: { primary: ['#0066cc', '#66b3ff'] },                   │
+│      spacing: { sm: '0.5rem', md: '1rem' },                        │
+│    }                                                               │
 │  })                                                                │
 │                                                                     │
 │  Builder experience:                                                │
-│  - Define tokens and component variants in one place               │
+│  - Define design tokens in one place                               │
 │  - Distributable as npm package                                    │
-│  - Type-safe, validates against component requirements             │
+│  - Components read tokens via CSS variables                        │
 └─────────────────────────────────────────────────────────────────────┘
 ```
 
@@ -75,12 +77,12 @@ XDS serves developers across their workflow phases. Based on research in `fronte
 
 | If the builder needs... | They use... | Complexity |
 |------------------------|-------------|------------|
-| Different colors | Theme tokens | Low |
-| New button variant | Theme component intents | Low |
+| Different colors/spacing | Theme tokens | Low |
+| New button variant | Swizzle | Medium |
 | Custom component structure | Swizzle | Medium |
 | New component behavior | New component | High |
 
-**Escalation path**: Theme → Swizzle → Custom. Each step up gives more control at the cost of more responsibility.
+**Escalation path**: Theme (tokens) → Swizzle (variants) → Custom. Each step up gives more control at the cost of more responsibility.
 
 ---
 
@@ -113,36 +115,40 @@ Designing the architecture for XDS based on explorations in:
 ┌─────────────────────────────────────────────────────────────────┐
 │  LAYER 3: COMPONENT API (Public)                               │
 │                                                                 │
-│  <Button intent="primary" size="md" />                         │
-│  <ListItem intent="default" iconSlot={<Icon />} />             │
+│  <Button variant="primary" size="md" />                         │
+│  <ListItem variant="default" iconSlot={<Icon />} />             │
 │                                                                 │
 │  - Props define intent, not style                              │
-│  - Zero styling on components                                  │
+│  - Components define their own variants                        │
 │  - TypeScript enforces valid prop combinations                 │
 ├─────────────────────────────────────────────────────────────────┤
-│  LAYER 2: THEME DEFINITION (User-Defined)                      │
+│  LAYER 2: DESIGN TOKENS (Theme Layer)                          │
 │                                                                 │
 │  const myTheme = createTheme({                                 │
-│    button: {                                                   │
-│      intents: { primary: {...}, secondary: {...} },            │
-│      sizes: { sm: {...}, md: {...}, lg: {...} },               │
-│      parts: { icon: {...}, label: {...} }                      │
+│    tokens: {                                                   │
+│      color: { primary: [...], secondary: [...] },              │
+│      spacing: { sm: '0.5rem', md: '1rem' },                    │
+│      radius: { sm: '4px', md: '8px' },                         │
 │    }                                                           │
 │  })                                                            │
 │                                                                 │
-│  - Users define their design system's semantic lockup          │
-│  - Maps intents → visual properties                            │
-│  - Includes sub-part styling                                   │
+│  - Tokens only — no component-level configurations             │
+│  - Components read via CSS variables                           │
+│  - Distributable as npm packages                               │
 ├─────────────────────────────────────────────────────────────────┤
-│  LAYER 1: DESIGN TOKENS (Internal + Swizzle)                   │
+│  LAYER 1: COMPONENT VARIANTS (Swizzle Layer)                   │
 │                                                                 │
-│  Semantic: --xds-color-primary, --xds-spacing-md               │
-│  Base: (documentation only, not in code)                       │
+│  const button = createVariants({                               │
+│    variants: { variant: { primary: {...}, secondary: {...} } } │
+│  })                                                            │
 │                                                                 │
-│  - Semantic tokens available for swizzle                       │
-│  - Base colors never exposed in code                           │
+│  - Components define their own variant → style mappings        │
+│  - Uses semantic tokens (var(--xds-color-primary))             │
+│  - Swizzle to customize variants                               │
 └─────────────────────────────────────────────────────────────────┘
 ```
+
+**Key decision**: Theme = tokens only. Variant customization happens through swizzle, where typing is strict and self-contained.
 
 ---
 
@@ -152,7 +158,7 @@ Designing the architecture for XDS based on explorations in:
 
 Different design systems have different semantic structures:
 
-| Design System | Button Intents |
+| Design System | Button Variants |
 |---------------|----------------|
 | System A | primary, secondary, tertiary |
 | System B | primary, secondary, danger, ghost, link |
@@ -161,77 +167,75 @@ Different design systems have different semantic structures:
 
 How does XDS support all of these with a single component library?
 
-### Solution: Intent Mapping Layer
+### Solution: Swizzle for Variant Customization
+
+With token-only themes, XDS ships **default components with standard variants**. Users swizzle to customize.
+
+**XDS default Button** (what you get out of the box):
+```typescript
+// @xds/core/Button.tsx
+const button = createVariants({
+  variants: {
+    variant: {
+      primary: { backgroundColor: 'var(--xds-color-primary)' },
+      secondary: { backgroundColor: 'var(--xds-color-secondary)' },
+      danger: { backgroundColor: 'var(--xds-color-danger)' },
+    },
+    size: {
+      sm: { padding: 'var(--xds-spacing-sm)' },
+      md: { padding: 'var(--xds-spacing-md)' },
+    }
+  }
+});
+
+export function Button({ variant = 'primary', size = 'md', children }) { ... }
+// Props: variant: 'primary' | 'secondary' | 'danger'
+```
+
+**System A swizzles** to get their variants:
+```typescript
+// src/components/xds/Button.tsx (swizzled)
+const button = createVariants({
+  variants: {
+    variant: {
+      primary: { backgroundColor: 'var(--xds-color-primary)' },
+      secondary: { backgroundColor: 'var(--xds-color-secondary)' },
+      tertiary: { backgroundColor: 'transparent', border: '1px solid' },
+    }
+  }
+});
+
+export function Button({ variant = 'primary', children }) { ... }
+// Props: variant: 'primary' | 'secondary' | 'tertiary'
+```
+
+### Type Safety is Self-Contained
+
+Each component (swizzled or not) has strict types based on its own variant definition:
 
 ```typescript
-// XDS provides a "universal" set of slots
-type XDSButtonSlots = {
-  primary: ButtonStyles;
-  secondary: ButtonStyles;
-  tertiary: ButtonStyles;
-  danger: ButtonStyles;
-  ghost: ButtonStyles;
-  link: ButtonStyles;
-  // ... extensible
+// Type is inferred from createVariants definition
+type ButtonProps = {
+  variant: 'primary' | 'secondary' | 'tertiary';  // From swizzled definition
+  size?: 'sm' | 'md';
+  children: React.ReactNode;
 };
 
-// User theme maps their semantic concepts to XDS slots
-const systemATheme = createTheme({
-  button: {
-    intents: {
-      primary: { /* styles */ },
-      secondary: { /* styles */ },
-      tertiary: { /* styles */ },
-      // danger, ghost, link → undefined (not used in System A)
-    }
-  }
-});
+// ✅ Valid
+<Button variant="tertiary">Click</Button>
 
-// Component only shows valid intents for that theme
-<Button intent="primary" />  // ✅ Valid in System A
-<Button intent="danger" />   // ❌ TypeScript error if not in theme
+// ❌ TypeScript error - 'ghost' not in this component's variants
+<Button variant="ghost">Click</Button>
 ```
 
-### How This Works
+### How This Simplifies Things
 
-1. **XDS defines a superset of possible intents** (union type)
-2. **Theme defines which intents are valid** (maps a subset)
-3. **TypeScript narrows the type** based on active theme
-4. **Invalid intents are compile-time errors**
-
-```typescript
-// Type narrowing based on theme
-type ThemeConfig = typeof systemATheme;
-type ValidIntents = keyof ThemeConfig['button']['intents'];
-// ValidIntents = 'primary' | 'secondary' | 'tertiary'
-
-// Button component uses narrowed type
-function Button<T extends ThemeConfig>({
-  intent
-}: {
-  intent: keyof T['button']['intents']
-}) { ... }
-```
-
-### Extensibility for Custom Intents
-
-Users can add intents not in XDS's superset:
-
-```typescript
-const customTheme = createTheme({
-  button: {
-    intents: {
-      primary: { /* ... */ },
-      secondary: { /* ... */ },
-      // Custom intent not in XDS superset
-      'ai-suggested': { /* ... */ },
-    }
-  }
-});
-
-// Works because theme defines what's valid
-<Button intent="ai-suggested" />  // ✅ Valid
-```
+| Concern | Token-only approach |
+|---------|---------------------|
+| **Where are variants defined?** | In the component file (one place) |
+| **Type inference** | Self-contained in component |
+| **AI context** | Component file has everything |
+| **Customization path** | Swizzle the component |
 
 ---
 
@@ -244,108 +248,221 @@ Components have internal parts that need independent styling:
 - ListItem: leading icon, content, trailing action
 - Input: prefix, input, suffix, error message
 
-### Solution: Slot-Based Theme Structure
+### Solution: Slots in Component Definition
 
+With token-only themes, slots are defined in the component file using Tailwind Variants (recommended) or `createVariants`.
+
+### Full Example: Button with Slots
+
+**Step 1: Theme provides tokens**
 ```typescript
-const theme = createTheme({
-  button: {
-    intents: {
-      primary: {
-        // Base styles for the component
-        background: '--xds-color-primary',
-        color: '--xds-color-on-primary',
-
-        // Slot-specific styles
-        parts: {
-          icon: {
-            size: '--xds-icon-md',
-            color: 'inherit',
-          },
-          label: {
-            font: '--xds-font-button',
-            weight: '--xds-font-weight-medium',
-          },
-          loadingIndicator: {
-            color: 'currentColor',
-          }
-        }
-      }
-    }
+// theme.ts
+export const theme = createTheme({
+  tokens: {
+    color: {
+      primary: ['#0066cc', '#66b3ff'],
+      onPrimary: ['#ffffff', '#000000'],
+      secondary: ['#6b7280', '#9ca3af'],
+      onSecondary: ['#ffffff', '#000000'],
+    },
+    spacing: {
+      xs: '0.25rem',
+      sm: '0.5rem',
+      md: '1rem',
+    },
   },
-
-  listItem: {
-    intents: {
-      default: {
-        padding: '--xds-spacing-md',
-
-        parts: {
-          leadingIcon: {
-            size: '--xds-icon-sm',
-            color: '--xds-color-secondary',
-          },
-          content: {
-            font: '--xds-font-body',
-          },
-          trailingAction: {
-            // inherits from parent by default
-          }
-        }
-      }
-    }
-  }
 });
 ```
 
-### How Components Consume Slots
-
+**Step 2: Component defines variants and slots using tokens**
 ```typescript
-// Component definition with typed slots
-interface ButtonParts {
-  icon?: ReactNode;
-  label: ReactNode;
-  loadingIndicator?: ReactNode;
+// components/Button.tsx
+import { tv } from 'tailwind-variants';
+
+// Tailwind preset maps XDS tokens → Tailwind classes
+// bg-primary → var(--xds-color-primary)
+// px-md → var(--xds-spacing-md)
+
+const button = tv({
+  slots: {
+    base: 'inline-flex items-center justify-center rounded-md cursor-pointer transition-colors',
+    icon: 'shrink-0',
+    label: 'font-medium',
+    spinner: 'animate-spin',
+  },
+
+  variants: {
+    variant: {
+      primary: {
+        base: 'bg-primary text-on-primary hover:bg-primary-dark focus:ring-2 focus:ring-primary/50',
+        icon: 'text-on-primary',
+      },
+      secondary: {
+        base: 'bg-secondary text-on-secondary hover:bg-secondary-dark',
+        icon: 'text-on-secondary',
+      },
+      ghost: {
+        base: 'bg-transparent text-primary hover:bg-primary/10',
+        icon: 'text-primary',
+      },
+    },
+    size: {
+      sm: {
+        base: 'px-sm py-xs text-sm gap-xs',
+        icon: 'w-3 h-3',
+      },
+      md: {
+        base: 'px-md py-sm text-base gap-sm',
+        icon: 'w-4 h-4',
+      },
+      lg: {
+        base: 'px-lg py-md text-lg gap-sm',
+        icon: 'w-5 h-5',
+      },
+    },
+  },
+
+  defaultVariants: {
+    variant: 'primary',
+    size: 'md',
+  },
+});
+
+// TypeScript infers props from variant definition
+interface ButtonProps {
+  variant?: 'primary' | 'secondary' | 'ghost';
+  size?: 'sm' | 'md' | 'lg';
+  icon?: React.ReactNode;
+  isLoading?: boolean;
+  children: React.ReactNode;
+  onClick?: () => void;
 }
 
-function Button({
-  intent,
-  children,
+export function Button({
+  variant,
+  size,
   icon,
-  isLoading
+  isLoading,
+  children,
+  onClick,
 }: ButtonProps) {
-  const theme = useTheme();
-  const styles = theme.button.intents[intent];
+  const styles = button({ variant, size });
 
   return (
-    <button {...stylex.props(styles.base)}>
-      {icon && (
-        <span {...stylex.props(styles.parts.icon)}>
-          {icon}
-        </span>
+    <button className={styles.base()} onClick={onClick} disabled={isLoading}>
+      {isLoading ? (
+        <Spinner className={styles.spinner()} />
+      ) : (
+        icon && <span className={styles.icon()}>{icon}</span>
       )}
-      <span {...stylex.props(styles.parts.label)}>
-        {children}
-      </span>
-      {isLoading && (
-        <Spinner {...stylex.props(styles.parts.loadingIndicator)} />
-      )}
+      <span className={styles.label()}>{children}</span>
     </button>
   );
 }
 ```
 
-### Slot Inheritance
+**Step 3: Use in app with theme provider**
+```tsx
+// App.tsx
+import { Theme } from '@xds/core';
+import { theme } from './theme';
+import { Button } from './components/Button';
+import { PlusIcon } from './icons';
 
-Slots can inherit from parent or override:
+function App() {
+  return (
+    <Theme theme={theme}>
+      {/* Tokens flow through CSS variables */}
+      <Button variant="primary" size="md" icon={<PlusIcon />}>
+        Add Item
+      </Button>
+
+      <Button variant="ghost" size="sm">
+        Cancel
+      </Button>
+
+      <Button variant="secondary" size="lg" isLoading>
+        Saving...
+      </Button>
+    </Theme>
+  );
+}
+```
+
+### How It All Connects
+
+```
+┌─────────────────────────────────────────────────────────────────┐
+│  THEME (tokens only)                                            │
+│  primary: ['#0066cc', '#66b3ff']                               │
+│           ↓                                                     │
+│  Generates CSS: --xds-color-primary: light-dark(#0066cc, ...)  │
+└──────────────────────────┬──────────────────────────────────────┘
+                           ↓
+┌─────────────────────────────────────────────────────────────────┐
+│  TAILWIND PRESET                                                │
+│  Maps: bg-primary → background-color: var(--xds-color-primary) │
+└──────────────────────────┬──────────────────────────────────────┘
+                           ↓
+┌─────────────────────────────────────────────────────────────────┐
+│  COMPONENT (variants + slots)                                   │
+│  primary: { base: 'bg-primary text-on-primary' }               │
+│  Button reads tokens via Tailwind classes                      │
+└──────────────────────────┬──────────────────────────────────────┘
+                           ↓
+┌─────────────────────────────────────────────────────────────────┐
+│  USAGE                                                          │
+│  <Button variant="primary" icon={<Plus />}>Add</Button>        │
+│  Props are typed, tokens flow through, slots render correctly  │
+└─────────────────────────────────────────────────────────────────┘
+```
+
+### Slot Styling per Variant
+
+Slots can have different styles per variant:
 
 ```typescript
-parts: {
-  icon: {
-    color: 'inherit',        // Inherits from button color
-  },
-  label: {
-    color: '--xds-color-on-primary',  // Explicit override
+variants: {
+  variant: {
+    primary: {
+      base: 'bg-primary text-on-primary',
+      icon: 'text-on-primary',           // Icon inherits primary colors
+    },
+    ghost: {
+      base: 'bg-transparent text-primary',
+      icon: 'text-primary opacity-70',   // Icon is slightly muted
+    },
   }
 }
+```
+
+### Using StyleX + createVariants (Alternative)
+
+For advanced users who prefer StyleX:
+
+```typescript
+import * as stylex from '@stylexjs/stylex';
+import { createVariants } from '@xds/variants';
+
+const button = createVariants({
+  base: stylex.create({ root: { cursor: 'pointer', borderRadius: 4 } }).root,
+
+  slots: {
+    icon: stylex.create({ root: { width: 16, height: 16 } }).root,
+    label: stylex.create({ root: { fontWeight: 500 } }).root,
+  },
+
+  variants: {
+    variant: {
+      primary: stylex.create({
+        root: {
+          backgroundColor: 'var(--xds-color-primary)',
+          color: 'var(--xds-color-on-primary)',
+        }
+      }).root,
+    }
+  }
+});
 ```
 
 ---
@@ -434,21 +551,12 @@ export const myTheme = createTheme({
       }
     },
   },
-
-  // Component-specific theming
-  components: {
-    button: {
-      intents: { /* ... */ },
-      sizes: { /* ... */ },
-      parts: { /* ... */ },
-    },
-    input: { /* ... */ },
-    listItem: { /* ... */ },
-  }
 });
 
 type MyTheme = typeof myTheme;
 ```
+
+**Note**: Theme contains only tokens. Component variants are defined in component files.
 
 ### Generated CSS Output
 
@@ -478,28 +586,28 @@ For apps that want manual light/dark toggle:
 
 ```tsx
 // Follow system preference (default)
-<XDSProvider theme={myTheme} mode="system">
+<Theme theme={myTheme} mode="system">
 
 // Force dark mode
-<XDSProvider theme={myTheme} mode="dark">
+<Theme theme={myTheme} mode="dark">
 
 // Force light mode
-<XDSProvider theme={myTheme} mode="light">
+<Theme theme={myTheme} mode="light">
 ```
 
 ### Using the Theme
 
 ```typescript
-import { XDSProvider } from '@xds/core';
+import { Theme } from '@xds/core';
 import { myTheme } from './theme';
 
 function App() {
   return (
-    <XDSProvider theme={myTheme}>
-      <Button intent="primary" size="md">
+    <Theme theme={myTheme}>
+      <Button variant="primary" size="md">
         Click me
       </Button>
-    </XDSProvider>
+    </Theme>
   );
 }
 ```
@@ -514,23 +622,17 @@ import { baseTheme } from '@xds/themes/base';
 const myTheme = createTheme({
   extends: baseTheme,
 
-  // Override specific parts
+  // Override specific tokens
   tokens: {
     color: {
-      primary: '#custom-brand-color',
+      primary: ['#custom-brand', '#custom-brand-dark'],
+      secondary: ['#custom-secondary', '#custom-secondary-dark'],
     }
   },
-
-  components: {
-    button: {
-      intents: {
-        // Add a new intent
-        'custom-cta': { /* ... */ }
-      }
-    }
-  }
 });
 ```
+
+To add new button variants, swizzle the Button component instead of modifying the theme.
 
 ---
 
@@ -548,9 +650,9 @@ const myTheme = createTheme({
 
 | Design Decision | AI Benefit |
 |-----------------|------------|
-| **Props, not classes** | `intent="primary"` is learnable; `bg-blue-500 hover:bg-blue-600` is arbitrary |
+| **Props, not classes** | `variant="primary"` is learnable; `bg-blue-500 hover:bg-blue-600` is arbitrary |
 | **TypeScript enforcement** | Invalid props fail at compile time, AI gets immediate feedback |
-| **Finite intent set** | AI learns discrete options, not infinite styling possibilities |
+| **Finite variant set** | AI learns discrete options, not infinite styling possibilities |
 | **Consistent patterns** | Same API shape across all components |
 | **No arbitrary values** | Can't generate `mt-[13px]`, only valid tokens |
 | **Re-export pattern** | Concrete types in one file, no cross-package reasoning |
@@ -561,7 +663,7 @@ The "AI gap" is primarily for **component authors**, not **component consumers**
 
 | Role | API Surface | AI Difficulty |
 |------|-------------|---------------|
-| **Consumer** (Job 3) | `<Button intent="primary" size="md">` | Trivial — typed props, autocomplete |
+| **Consumer** (Job 3) | `<Button variant="primary" size="md">` | Trivial — typed props, autocomplete |
 | **Theme author** (Job 1) | `createTheme({ ... })` | Medium — structured, learnable |
 | **Swizzler** (Job 2) | StyleX + semantic CSS variables | Medium — documented patterns |
 | **Component author** | `createVariants({ ... stylex.create() ... })` | Higher — unfamiliar patterns |
@@ -575,7 +677,7 @@ Themes are structured data that can be included in AI context:
 ```typescript
 // Theme can be serialized for LLM context
 const themeContext = {
-  availableIntents: {
+  availableVariants: {
     button: ['primary', 'secondary', 'danger'],
     input: ['default', 'error', 'success'],
   },
@@ -644,121 +746,177 @@ Provide ESLint/Stylelint rules to prevent:
 
 ## Swizzle API
 
-**Job 2: Override/Create Components** — When theme customization isn't enough.
+**Job 2: Override/Create Components** — When you need to customize variants or behavior.
 
-Based on exploration in `swizzle-layer-ergonomics.md`, the swizzle layer serves two distinct personas with different needs.
+With token-only themes, swizzle is the path for **any component-level customization** beyond token changes.
 
-### Two Personas
+### When to Swizzle
 
-| Persona | Goal | Skill Level | Swizzle Use |
-|---------|------|-------------|-------------|
-| **DS Team** | Customize appearance to match brand | High — willing to learn StyleX | Heavy, styling-focused |
-| **Regular Builder** | Unblock a specific functionality | Medium — wants to ship fast | Minimal, functionality-focused |
+| Need | Solution |
+|------|----------|
+| Different primary color | Edit theme tokens |
+| New button variant (e.g. `ghost`) | Swizzle Button |
+| Custom click tracking | Swizzle Button |
+| Different animation | Swizzle Button |
+| Structural changes | Swizzle Button |
 
-### Dual-Path Swizzle
-
-```
-┌─────────────────────────────────────────────────────────────────┐
-│  PATH A: STYLING CUSTOMIZATION (customize)                     │
-│                                                                 │
-│  npx xds customize Button --theme=myTheme                      │
-│  → Generates theme extension (AI-friendly config)              │
-│                                                                 │
-│  For: DS teams, adding intents, tweaking tokens                │
-│  AI vibes: ✅ Excellent — structured data                      │
-├─────────────────────────────────────────────────────────────────┤
-│  PATH B: FUNCTIONAL OVERRIDE (swizzle)                         │
-│                                                                 │
-│  npx xds swizzle Button                                        │
-│  → Full source with AI-friendly annotations                    │
-│                                                                 │
-│  For: Builders needing behavior changes                        │
-│  AI vibes: ⚠️ Medium — unfamiliar but documented              │
-└─────────────────────────────────────────────────────────────────┘
-```
-
-### Path A: Theme Extension (Styling)
-
-For DS teams that want to customize appearance without changing structure.
+### Swizzle Command
 
 ```bash
-npx xds customize Button --theme=corporate
-```
-
-**Generated file** (`themes/corporate/button.ts`):
-```typescript
-// AI-friendly format: structured config, not code
-import { extendTheme } from '@xds/core';
-
-export const corporateButtonTheme = extendTheme({
-  component: 'button',
-
-  intents: {
-    'brand-primary': {
-      background: '--corporate-blue',
-      color: 'white',
-    },
-  },
-
-  sizes: {
-    lg: { padding: '16px 32px', fontSize: '18px' },
-  },
-});
-```
-
-**Why AI-friendly**: Structured config format, clear property names, predictable schema.
-
-### Path B: Full Swizzle (Functionality)
-
-For builders who need to change behavior or structure.
-
-```bash
+# Default: Tailwind Variants format (recommended)
 npx xds swizzle Button
+
+# StyleX format (for advanced users)
+npx xds swizzle Button --format=stylex
 ```
 
-**Generated file** — Full source with heavy documentation:
+### Generated Code: Tailwind Variants (Default)
+
 ```typescript
 /**
  * 🎨 SWIZZLED COMPONENT: Button
  *
+ * Source: @xds/core@2.1.0
+ * Swizzled: 2026-01-09
+ *
+ * ⚠️ This component is now your responsibility.
+ *
+ * RULES:
+ * ✅ Use XDS token classes: bg-primary, text-on-primary, p-md
+ * ❌ No arbitrary values: bg-[#ff0000], mt-[13px]
+ *
  * COMMON CUSTOMIZATIONS:
- * 1. Add custom behavior: see line 45
- * 2. Modify structure: see line 89
- * 3. Styling changes: use semantic tokens (var(--xds-color-primary))
+ * - Add variant: add to variants.variant below
+ * - Add behavior: modify handleClick function
+ * - Change structure: modify JSX return
  */
 
-const button = createVariants({
-  // 👇 CUSTOMIZE: Base styles
-  base: stylex.create({ root: { cursor: 'pointer' } }).root,
+import { tv } from 'tailwind-variants';
 
-  // 👇 CUSTOMIZE: Add or modify intents
-  variants: { /* ... */ },
+const button = tv({
+  slots: {
+    base: 'rounded-md cursor-pointer transition-colors',
+    icon: 'w-4 h-4',
+    label: 'font-medium',
+  },
+
+  variants: {
+    // 👇 CUSTOMIZE: Add or modify variants
+    variant: {
+      primary: {
+        base: 'bg-primary text-on-primary hover:bg-primary-dark',
+        icon: 'text-on-primary',
+      },
+      secondary: {
+        base: 'bg-secondary text-on-secondary hover:bg-secondary-dark',
+        icon: 'text-on-secondary',
+      },
+      danger: {
+        base: 'bg-danger text-on-danger hover:bg-danger-dark',
+      },
+    },
+
+    size: {
+      sm: { base: 'px-sm py-xs text-sm', icon: 'w-3 h-3' },
+      md: { base: 'px-md py-sm text-base', icon: 'w-4 h-4' },
+      lg: { base: 'px-lg py-md text-lg', icon: 'w-5 h-5' },
+    },
+  },
+
+  defaultVariants: {
+    variant: 'primary',
+    size: 'md',
+  },
 });
 
-export function Button({ intent, onClick, children }) {
-  // 👇 CUSTOMIZE: Add custom behavior (tracking, analytics)
-  const handleClick = () => { onClick?.(); };
+interface ButtonProps {
+  variant?: 'primary' | 'secondary' | 'danger';
+  size?: 'sm' | 'md' | 'lg';
+  children: React.ReactNode;
+  onClick?: () => void;
+  // 👇 CUSTOMIZE: Add new props
+}
 
-  return <button onClick={handleClick}>{children}</button>;
+export function Button({ variant, size, icon, children, onClick }: ButtonProps) {
+  const styles = button({ variant, size });
+
+  // 👇 CUSTOMIZE: Add behavior (tracking, analytics, etc.)
+  const handleClick = () => {
+    onClick?.();
+  };
+
+  return (
+    <button className={styles.base()} onClick={handleClick}>
+      {icon && <span className={styles.icon()}>{icon}</span>}
+      <span className={styles.label()}>{children}</span>
+    </button>
+  );
 }
 ```
 
-**Why this works despite StyleX**:
-- Extensive inline documentation (AI reads comments)
-- Clear customization markers (👇 CUSTOMIZE)
-- Examples in comments
-- Semantic tokens only (no raw StyleX internals)
+### Why Tailwind is the Default
 
-### When to Use Which Path
+| Consideration | Tailwind Variants | StyleX |
+|--------------|-------------------|--------|
+| **AI familiarity** | ✅ High training data | ⚠️ Less common |
+| **Learning curve** | ✅ Familiar to most | ⚠️ New syntax |
+| **Encapsulation** | ⚠️ Classes in DOM | ✅ No exposed classes |
+| **Recommendation** | **Default for most** | Advanced users |
 
-| Builder needs... | Recommended path |
-|-----------------|------------------|
-| Different colors/spacing | **Path A** (customize) |
-| New button intent | **Path A** (customize) |
-| Custom click tracking | **Path B** (swizzle) |
-| Different validation logic | **Path B** (swizzle) |
-| Custom keyboard behavior | **Path B** (swizzle) |
-| Structural changes | **Path B** (swizzle) |
+### Format: StyleX (Alternative)
+
+For advanced users who want maximum encapsulation:
+
+```bash
+npx xds swizzle Button --format=stylex
+```
+
+```typescript
+import * as stylex from '@stylexjs/stylex';
+import { createVariants } from '@xds/variants';
+
+const button = createVariants({
+  base: stylex.create({ root: { cursor: 'pointer', borderRadius: 4 } }).root,
+
+  slots: {
+    icon: stylex.create({ root: { width: 16, height: 16 } }).root,
+    label: stylex.create({ root: { fontWeight: 500 } }).root,
+  },
+
+  variants: {
+    variant: {
+      primary: stylex.create({
+        root: {
+          backgroundColor: 'var(--xds-color-primary)',
+          color: 'var(--xds-color-on-primary)',
+        }
+      }).root,
+      // 👇 CUSTOMIZE: Add variants
+    }
+  }
+});
+
+export function Button({ variant = 'primary', children }) {
+  const styles = button({ variant });
+  return (
+    <button {...stylex.props(styles.base())}>
+      <span {...stylex.props(styles.slots.label())}>{children}</span>
+    </button>
+  );
+}
+```
+
+### Token Enforcement
+
+Both formats use XDS tokens via the Tailwind preset — no arbitrary values:
+
+```tsx
+// ✅ Uses XDS token
+base: 'bg-primary text-on-primary p-md',
+
+// ❌ Linting error: arbitrary value not allowed
+base: 'bg-[#0066cc] text-white p-4',
+```
 
 ### Swizzle Versioning
 
@@ -773,25 +931,6 @@ Swizzled components are "ejected" — they don't auto-update:
    Check @xds/core changelog for updates.
 ```
 
-### Format Options
-
-For builders who prefer Tailwind patterns:
-
-```bash
-# Default (StyleX) — maximum encapsulation
-npx xds swizzle Button
-
-# Tailwind format — familiar syntax, better AI vibes
-npx xds swizzle Button --format=tailwind
-```
-
-| Format | Best for | Tradeoff |
-|--------|----------|----------|
-| `stylex` (default) | DS teams, maximum control | Less familiar, learning curve |
-| `tailwind` | Regular builders, fast shipping | Classes in DOM, less encapsulation |
-
-Both formats use XDS tokens — no arbitrary values allowed. See `swizzle-layer-ergonomics.md` for detailed examples.
-
 ---
 
 ## Distributable Themes
@@ -800,10 +939,12 @@ Both formats use XDS tokens — no arbitrary values allowed. See `swizzle-layer-
 
 ### Theme as npm Package
 
+With token-only themes, packages are simple:
+
 ```
 @company/dark-theme/
 ├── package.json
-├── theme.ts          # Theme definition
+├── theme.ts          # Token definitions
 ├── index.ts          # Exports theme + types
 └── tokens.css        # Generated CSS variables
 ```
@@ -815,68 +956,49 @@ import { createTheme } from '@xds/core';
 export const darkTheme = createTheme({
   tokens: {
     color: {
-      primary: '#6366f1',
-      background: '#1a1a2e',
+      primary: ['#6366f1', '#818cf8'],
+      onPrimary: ['#ffffff', '#000000'],
+      background: ['#1a1a2e', '#0f0f1a'],
+      onBackground: ['#e0e0e0', '#ffffff'],
       // ...
-    }
+    },
+    spacing: {
+      sm: '0.5rem',
+      md: '1rem',
+    },
   },
-  components: {
-    button: {
-      intents: {
-        primary: { /* ... */ },
-        secondary: { /* ... */ },
-      }
-    }
-  }
 });
 
 export type DarkTheme = typeof darkTheme;
 ```
 
-### Type-Safe Theme Consumption
+### Using a Theme Package
 
-When themes are separate packages, components need to know what intents are available.
-
-**Recommended pattern: Re-export with concrete types**
-
-```typescript
-// src/components/index.ts — App-level typed components
-import { Button as XDSButton, Input as XDSInput } from '@xds/core';
-import { darkTheme, DarkTheme } from '@company/dark-theme';
-
-// Re-export with concrete types
-export const Button = XDSButton<DarkTheme>;
-export const Input = XDSInput<DarkTheme>;
-
-// Now intent is concretely typed: 'primary' | 'secondary'
-// AI sees simple, concrete types — no generics to reason about
-```
-
-**App setup**:
 ```typescript
 // src/App.tsx
-import { XDSProvider } from '@xds/core';
+import { Theme } from '@xds/core';
 import { darkTheme } from '@company/dark-theme';
-import { Button } from './components';
+import { Button } from '@xds/core';
 
 function App() {
   return (
-    <XDSProvider theme={darkTheme}>
-      <Button intent="primary">Click me</Button>
-    </XDSProvider>
+    <Theme theme={darkTheme}>
+      <Button variant="primary">Click me</Button>
+    </Theme>
   );
 }
 ```
 
-### Theme Distribution Tradeoffs
+### Type Safety
 
-| Approach | Type Safety | AI Context Required | Recommendation |
-|----------|-------------|---------------------|----------------|
-| **Generic components** | ✅ Full | Theme type in scope | Power users |
-| **Re-export with concrete types** | ✅ Full | Just component file | **Default pattern** |
-| **Superset intents** | ⚠️ Runtime | Just component | Simpler but less safe |
+With token-only themes, type safety is straightforward:
 
-The re-export pattern gives AI a single file with concrete types — no cross-package reasoning required.
+| What | Where Types Come From |
+|------|----------------------|
+| **Tokens** | Theme definition (`darkTheme.tokens.color.primary`) |
+| **Component variants** | Component definition (self-contained) |
+
+Components have their own types based on their variant definitions — no cross-package type inference needed.
 
 ---
 
@@ -886,12 +1008,16 @@ The re-export pattern gives AI a single file with concrete types — no cross-pa
 
 1. ~~**Light/dark mode support?**~~ → **Resolved**: Color tokens are always `[light, dark]` pairs. CSS uses `light-dark()` function. TypeScript enforces pairs.
 
-2. ~~**Swizzle layer ergonomics?**~~ → **Resolved**: Dual-path approach (Path A: customize for styling, Path B: swizzle for functionality). See `swizzle-layer-ergonomics.md`.
+2. ~~**Swizzle layer ergonomics?**~~ → **Resolved**: Swizzle with Tailwind Variants as default format. StyleX available for advanced users.
+
+3. ~~**Component themes in theme vs component file?**~~ → **Resolved**: Token-only themes. Component variants are defined in component files, customized via swizzle.
+
+4. ~~**Prop naming (intent vs variant)?**~~ → **Resolved**: Use `variant` — more corpus representation for AI.
 
 ### Unresolved Design Decisions
 
 1. **How deep should slot nesting go?**
-   - `button.parts.icon.hover` or just `button.parts.icon`?
+   - `button.slots.icon.hover` or just `button.slots.icon`?
    - Risk of over-specification vs. flexibility
 
 2. **Should themes be runtime or compile-time?**
@@ -904,36 +1030,32 @@ The re-export pattern gives AI a single file with concrete types — no cross-pa
    - Or separate responsive layer?
 
 4. **Theme validation/linting?**
-   - Warn if theme is missing required intents?
+   - Warn if theme is missing required tokens?
    - Provide a `validateTheme()` function?
 
 5. **Default theme?**
    - Should XDS ship a default theme?
    - Or require users to always define one?
 
-### Distributable Themes
+### Swizzle Layer
 
-7. **Generic components vs re-export pattern?**
-   - Should we enforce the re-export pattern?
-   - Or make generic components ergonomic enough for direct use?
+6. **Swizzle sync command?**
+   - `npx xds sync Button` to see upstream changes?
+   - How do we help users stay up-to-date?
 
-8. **Theme CLI tooling?**
-   - `npx xds init-theme` to scaffold a theme package?
-   - `npx xds generate-components` to create typed re-exports?
-
-9. **Runtime theme switching with type safety?**
-   - How do we switch themes while maintaining compile-time type checks?
-   - Union of all possible theme intents?
+7. **Component versioning in swizzled files?**
+   - Should swizzled files track which XDS version they came from?
+   - Warnings when upstream has breaking changes?
 
 ### `@xds/variants` Implementation
 
-10. **Type inference complexity?**
-    - How do we infer variant props from nested StyleX objects?
-    - Should variants reference theme tokens or be self-contained?
+8. **Type inference complexity?**
+   - How do we infer variant props from nested StyleX objects?
+   - Tailwind Variants handles this well — can we match it?
 
-11. **Responsive variants?**
-    - Should responsive breakpoints be part of variant API?
-    - Or handled via StyleX media queries?
+9. **Responsive variants?**
+   - Should responsive breakpoints be part of variant API?
+   - Or handled via Tailwind/StyleX media queries?
 
 ---
 
@@ -985,7 +1107,7 @@ const button = createVariants({
   },
 
   variants: {
-    intent: {
+    variant: {
       primary: stylex.create({
         root: { backgroundColor: 'var(--xds-color-primary)' }
       }).root,
@@ -1000,12 +1122,12 @@ const button = createVariants({
   },
 
   defaultVariants: {
-    intent: 'primary',
+    variant: 'primary',
     size: 'md',
   }
 });
 
-// TypeScript infers: { intent: 'primary' | 'secondary', size: 'sm' | 'md' }
+// TypeScript infers: { variant: 'primary' | 'secondary', size: 'sm' | 'md' }
 ```
 
 This provides tw-classed ergonomics without exposed CSS classes.
@@ -1017,12 +1139,12 @@ This provides tw-classed ergonomics without exposed CSS classes.
 ### Phase 1: Core Infrastructure
 - `@xds/variants` wrapper around StyleX — tw-classed-like ergonomics with compile-time enforcement
 - `createTheme()` function with TypeScript inference
-- `XDSProvider` context
+- `Theme` context
 - Basic token system (colors, spacing, typography)
 - 3-5 pilot components (Button, Input, Text, Box, Stack)
 
 ### Phase 2: Component Library
-- Full component set with intent/size/part slots
+- Full component set with variant/size/part slots
 - Swizzle CLI
 - Storybook integration
 

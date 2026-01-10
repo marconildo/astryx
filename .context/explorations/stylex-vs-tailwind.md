@@ -343,7 +343,7 @@ Research recommends a three-tier structure where only the outermost layer is pub
 │  --spacing-component-gap: var(--spacing-16)        │
 ├─────────────────────────────────────────────────────┤
 │  COMPONENT API (the public contract)               │
-│  <Button intent="primary" />                       │
+│  <Button variant="primary" />                       │
 │  NOT: style={{ color: 'var(--xds-color-primary)' }}│
 └─────────────────────────────────────────────────────┘
 ```
@@ -388,8 +388,8 @@ This creates a tiered access model:
 ```
 ┌─────────────────────────────────────────────────────────────┐
 │  PUBLIC API (versioned, stable)                            │
-│  - Component props: <Button intent="primary" />            │
-│  - Theme customization: <XDSProvider theme={myTheme} />    │
+│  - Component props: <Button variant="primary" />            │
+│  - Theme customization: <Theme theme={myTheme} />    │
 │  - Zero styling — no CSS exposure                          │
 ├─────────────────────────────────────────────────────────────┤
 │  SEMANTIC TOKENS (available for swizzle)                   │
@@ -473,7 +473,7 @@ Given the tension between StyleX's enforcement and Tailwind's ecosystem:
 
 ### The Problem These Solve
 
-When using Tailwind, components need to manage variants (sizes, intents, states) while staying DRY. Options include:
+When using Tailwind, components need to manage variants (sizes, colors, states) while staying DRY. Options include:
 - Manual string concatenation: `className={isLarge ? 'px-8 py-4' : 'px-4 py-2'}` (messy at scale)
 - Wrapper libraries that provide type-safe variant APIs
 
@@ -495,7 +495,7 @@ import { classed } from 'tw-classed';
 
 const Button = classed('button', {
   variants: {
-    intent: {
+    variant: {
       primary: 'bg-blue-500 text-white',
       secondary: 'bg-gray-200 text-gray-900',
     },
@@ -507,23 +507,23 @@ const Button = classed('button', {
   },
   compoundVariants: [
     {
-      intent: 'primary',
+      variant: 'primary',
       size: 'lg',
       class: 'shadow-lg', // Applied when both conditions match
     }
   ],
   defaultVariants: {
-    intent: 'primary',
+    variant: 'primary',
     size: 'md',
   }
 });
 
 // Usage
-<Button intent="secondary" size="lg">Click me</Button>
+<Button variant="secondary" size="lg">Click me</Button>
 ```
 
 **Strengths**:
-- Full TypeScript inference — `intent` prop is typed
+- Full TypeScript inference — `variant` prop is typed
 - Zero runtime overhead (~0kb)
 - No `forwardRef` boilerplate
 - Automatic variant autocomplete
@@ -601,7 +601,7 @@ import { cva } from 'class-variance-authority';
 
 const button = cva('font-semibold rounded', {
   variants: {
-    intent: {
+    variant: {
       primary: 'bg-blue-500 text-white',
       secondary: 'bg-gray-200 text-gray-900',
     },
@@ -611,13 +611,13 @@ const button = cva('font-semibold rounded', {
     }
   },
   defaultVariants: {
-    intent: 'primary',
+    variant: 'primary',
     size: 'md',
   }
 });
 
 // Usage
-<button className={button({ intent: 'secondary', size: 'lg' })}>
+<button className={button({ variant: 'secondary', size: 'lg' })}>
   Click me
 </button>
 ```
@@ -693,7 +693,7 @@ Use Tailwind Variants for ergonomics and slots, but add strict safeguards:
 tw-classed provides excellent variant API ergonomics:
 ```typescript
 const Button = classed('button', {
-  variants: { intent: { primary: '...' } }
+  variants: { variant: { primary: '...' } }
 });
 ```
 
@@ -770,7 +770,7 @@ const button = createVariants({
   },
 
   variants: {
-    intent: {
+    variant: {
       primary: stylex.create({
         root: {
           backgroundColor: 'var(--xds-color-primary)',
@@ -799,7 +799,7 @@ const button = createVariants({
 
   compoundVariants: [
     {
-      intent: 'primary',
+      variant: 'primary',
       size: 'lg',
       style: stylex.create({
         root: { boxShadow: '0 4px 6px rgba(0,0,0,0.1)' }
@@ -808,14 +808,14 @@ const button = createVariants({
   ],
 
   defaultVariants: {
-    intent: 'primary',
+    variant: 'primary',
     size: 'md',
   }
 });
 
 // Component using the variant system
-export function Button({ intent = 'primary', size = 'md', icon, children }) {
-  const styles = button({ intent, size });
+export function Button({ variant = 'primary', size = 'md', icon, children }) {
+  const styles = button({ variant, size });
 
   return (
     <button {...styles.base()}>
@@ -838,7 +838,7 @@ export function Button({ intent = 'primary', size = 'md', icon, children }) {
 **Type inference**:
 ```typescript
 type ButtonVariants = {
-  intent: 'primary' | 'secondary';
+  variant: 'primary' | 'secondary';
   size: 'sm' | 'md' | 'lg';
 };
 
@@ -889,7 +889,7 @@ const tokens = {
 ```typescript
 const button = createTokenamiVariants({
   variants: {
-    intent: {
+    variant: {
       primary: { backgroundColor: 'var(--color-primary)' },
       secondary: { backgroundColor: 'var(--color-secondary)' },
     }
@@ -924,7 +924,7 @@ const buttonVariants = tv({
     label: 'font-medium',
   },
   variants: {
-    intent: {
+    variant: {
       primary: {
         base: 'bg-primary text-on-primary',
       },
@@ -936,8 +936,8 @@ const buttonVariants = tv({
 });
 
 // Public component — props only
-export function Button({ intent = 'primary', size = 'md', icon, children }) {
-  const styles = buttonVariants({ intent, size });
+export function Button({ variant = 'primary', size = 'md', icon, children }) {
+  const styles = buttonVariants({ variant, size });
 
   return (
     <button className={styles.base()}>
@@ -1063,7 +1063,7 @@ The "AI gap" with StyleX is primarily for **component authors**, not **component
 
 | Role | API Surface | AI Difficulty |
 |------|-------------|---------------|
-| **Consumer** | `<Button intent="primary" size="md">` | Trivial — typed props, autocomplete |
+| **Consumer** | `<Button variant="primary" size="md">` | Trivial — typed props, autocomplete |
 | **Author** | `createVariants({ ... stylex.create() ... })` | Higher — unfamiliar StyleX patterns |
 | **Swizzler** | Semantic CSS variables + custom StyleX | Medium — documented patterns |
 
@@ -1083,7 +1083,7 @@ The "AI gap" with StyleX is primarily for **component authors**, not **component
 // The goal: infer variant types from definition
 const button = createVariants({
   variants: {
-    intent: {
+    variant: {
       primary: stylex.create({...}).root,
       secondary: stylex.create({...}).root,
     },
@@ -1095,7 +1095,7 @@ const button = createVariants({
 });
 
 // TypeScript infers:
-// { intent: 'primary' | 'secondary', size: 'sm' | 'md' }
+// { variant: 'primary' | 'secondary', size: 'sm' | 'md' }
 type ButtonVariants = Parameters<typeof button>[0];
 ```
 
@@ -1123,8 +1123,8 @@ When themes are separate packages, there's tension between type safety and AI co
 ```
 @company/dark-theme          @xds/core
 ├── theme.ts                 ├── Button.tsx
-│   intents: {               │   intent: ???
-│     primary,               │   // What intents are valid?
+│   variants: {              │   variant: ???
+│     primary,               │   // What variants are valid?
 │     secondary              │   // Component doesn't know
 │   }                        │
 ```
@@ -1134,7 +1134,7 @@ When themes are separate packages, there's tension between type safety and AI co
 | Approach | Type Safety | AI Context Required | AI Difficulty |
 |----------|-------------|---------------------|---------------|
 | **Generic components** | ✅ Full | Theme type in scope | Medium — needs to understand generics |
-| **Superset intents** | ⚠️ Runtime | Just component | Low — simple props |
+| **Superset variants** | ⚠️ Runtime | Just component | Low — simple props |
 | **Codegen** | ✅ Full | Generated component | Low — types are concrete |
 
 **Recommended pattern: Re-export with concrete types**
@@ -1146,7 +1146,7 @@ import { theme } from '@company/dark-theme';
 
 // Re-export with concrete types
 export const Button = XDSButton<typeof theme>;
-// Now intent is concretely typed: 'primary' | 'secondary'
+// Now variant is concretely typed: 'primary' | 'secondary'
 ```
 
 This gives AI a single file with concrete types — no need to reason about generics or cross-package relationships.
@@ -1180,7 +1180,7 @@ The swizzle API must also be AI-friendly. When users swizzle a component, AI nee
  * - --xds-spacing-sm, --xds-spacing-md, etc.
  *
  * Common customizations:
- * - Add new intent: add to `variants.intent`
+ * - Add new variant: add to `variants.variant`
  * - Change sizing: modify `variants.size`
  * - Add animation: add to base styles
  */
@@ -1191,13 +1191,13 @@ const button = createVariants({
     root: { /* ... */ }
   }).root,
 
-  // 👇 CUSTOMIZE: Add or modify intents here
+  // 👇 CUSTOMIZE: Add or modify variants here
   variants: {
-    intent: {
+    variant: {
       primary: stylex.create({
         root: { backgroundColor: 'var(--xds-color-primary)' }
       }).root,
-      // Add custom intents below:
+      // Add custom variants below:
     }
   }
 });
@@ -1303,7 +1303,7 @@ The swizzle API provides a middle ground that actually *reduces* unnecessary com
 - Could we generate the variable definitions automatically from component slots?
 
 ### Distributable Themes
-- Generic components vs superset intents vs codegen — which approach for multi-theme type safety?
+- Generic components vs superset variants vs codegen — which approach for multi-theme type safety?
 - How do we make the re-export pattern discoverable for users?
 - Should XDS provide a CLI to generate typed component re-exports from a theme?
 - How do we handle theme switching at runtime while maintaining type safety?

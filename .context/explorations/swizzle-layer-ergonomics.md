@@ -28,7 +28,7 @@ The swizzle layer has competing tensions:
 **Swizzle use**: Heavy customization, styling-focused
 
 **Example needs**:
-- Custom button intents matching brand hierarchy
+- Custom button variants matching brand hierarchy
 - Specific spacing/sizing variants
 - Custom animations/transitions
 - Brand-specific slots (e.g., badge on buttons)
@@ -91,8 +91,8 @@ import { extendTheme } from '@xds/core';
 export const corporateButtonTheme = extendTheme({
   component: 'button',
 
-  // Add new intents
-  intents: {
+  // Add new variants
+  variants: {
     'brand-primary': {
       background: '--corporate-blue',
       color: 'white',
@@ -129,12 +129,12 @@ export const corporateButtonTheme = extendTheme({
 
 **Usage**:
 ```tsx
-import { XDSProvider } from '@xds/core';
+import { Theme } from '@xds/core';
 import { corporateButtonTheme } from './themes/corporate/button';
 
-<XDSProvider theme={corporateButtonTheme}>
-  <Button intent="brand-primary">Corporate CTA</Button>
-</XDSProvider>
+<Theme theme={corporateButtonTheme}>
+  <Button variant="brand-primary">Corporate CTA</Button>
+</Theme>
 ```
 
 ### Path B: Functional Override (Full Swizzle)
@@ -205,8 +205,8 @@ const button = createVariants({
   },
 
   variants: {
-    intent: {
-      // 👇 CUSTOMIZE: Add or modify intents
+    variant: {
+      // 👇 CUSTOMIZE: Add or modify variants
       primary: stylex.create({
         root: {
           backgroundColor: 'var(--xds-color-primary)',
@@ -218,19 +218,19 @@ const button = createVariants({
 });
 
 interface ButtonProps {
-  intent?: 'primary' | 'secondary';
+  variant?: 'primary' | 'secondary';
   children: React.ReactNode;
   onClick?: () => void;
   // 👇 CUSTOMIZE: Add new props here
 }
 
-export function Button({ intent = 'primary', children, onClick }: ButtonProps) {
-  const styles = button({ intent });
+export function Button({ variant = 'primary', children, onClick }: ButtonProps) {
+  const styles = button({ variant });
 
   // 👇 CUSTOMIZE: Add custom behavior (tracking, analytics, etc.)
   const handleClick = () => {
     // Example: Add analytics
-    // analytics.track('button_clicked', { intent });
+    // analytics.track('button_clicked', { variant });
     onClick?.();
   };
 
@@ -309,7 +309,7 @@ npx xds customize Button --theme=corporate --format=tailwind
 import { defineButtonTheme } from '@xds/core';
 
 export const corporateButton = defineButtonTheme({
-  intents: {
+  variants: {
     'brand-primary': {
       base: 'bg-primary text-on-primary rounded-md',
       hover: 'hover:bg-primary-dark',
@@ -369,7 +369,7 @@ const button = tv({
   },
 
   variants: {
-    intent: {
+    variant: {
       primary: {
         base: 'bg-primary text-on-primary hover:bg-primary-dark',
         icon: 'text-on-primary',
@@ -381,7 +381,7 @@ const button = tv({
       danger: {
         base: 'bg-danger text-on-danger hover:bg-danger-dark',
       },
-      // 👇 CUSTOMIZE: Add new intents here
+      // 👇 CUSTOMIZE: Add new variants here
     },
 
     size: {
@@ -392,21 +392,21 @@ const button = tv({
   },
 
   defaultVariants: {
-    intent: 'primary',
+    variant: 'primary',
     size: 'md',
   },
 });
 
 interface ButtonProps {
-  intent?: 'primary' | 'secondary' | 'danger';
+  variant?: 'primary' | 'secondary' | 'danger';
   size?: 'sm' | 'md' | 'lg';
   children: React.ReactNode;
   onClick?: () => void;
   // 👇 CUSTOMIZE: Add new props
 }
 
-export function Button({ intent, size, children, onClick }: ButtonProps) {
-  const styles = button({ intent, size });
+export function Button({ variant, size, children, onClick }: ButtonProps) {
+  const styles = button({ variant, size });
 
   // 👇 CUSTOMIZE: Add behavior (tracking, etc.)
   const handleClick = () => {
@@ -490,7 +490,7 @@ The Tailwind preset maps XDS tokens:
 | Builder needs... | Recommended path |
 |-----------------|------------------|
 | Different colors/spacing | Path A (customize) |
-| New button intent | Path A (customize) |
+| New button variant | Path A (customize) |
 | Custom click tracking | Path B (swizzle) |
 | Different validation logic | Path B (swizzle) |
 | Custom keyboard behavior | Path B (swizzle) |
